@@ -1,55 +1,95 @@
-# Personal Knowledge Curator (Phase 1 MVP)
-
-**Description**  
-The **Personal Knowledge Curator (PKC)** is an autonomous AI assistant designed to help users collect, summarize, and organize personal knowledge. Unlike traditional note-taking tools, the Curator actively processes user inputs, generates semantic tags, links related notes, and provides reflective insights.
-
-This Phase 1 MVP allows a user to either paste full content or submit a URL (placeholder for now). The Curator agent then:
-
-- Summarizes the content
-- Generates semantic tags
-- Stores notes in a PostgreSQL database with embeddings
-- Suggests related notes via semantic search
-- Optionally provides a mini-reflection on the user's knowledge growth
+# 🧙‍♂️ Merlin – Personal Knowledge Curator (Phase 1 MVP)
 
 ---
 
-## **Key Features (Phase 1)**
+## 🎯 Pitch
 
-- **Autonomous AI Agent:** The Curator decides what actions to take on new inputs.
-- **Curator Personality:** Friendly, reflective, and thoughtful tone in summaries and reflections.
-- **Semantic Organization:** Notes are linked by meaning using embeddings rather than folders or tags.
-- **Flexible Input:** Users can paste text or provide a URL (manual for now).
-- **Mini Reflection:** Optional feature summarizing trends in user notes.
+### 🧠 The Problem
+We are overwhelmed by information — articles, podcasts, videos, newsletters.  
+Every day we save links, screenshots, scattered notes… but rarely go back to read them.  
 
----
-
-## **Technical Stack**
-
-| Layer                     | Technology / Library                    | Purpose |
-|----------------------------|----------------------------------------|---------|
-| **Frontend (UI)**          | Streamlit                               | Quick interface for input and visualization |
-| **Backend**                | FastAPI                                 | API for note ingestion and agent communication |
-| **Agent Framework**        | Strands                                 | Orchestrates summarization, tagging, embedding, and reasoning |
-| **LLM**                    | OpenAI GPT-4o-mini                       | Summarization, tagging, reflective insights |
-| **Database**               | PostgreSQL + pgvector                    | Store notes, embeddings, and enable semantic search |
-| **Embeddings**             | OpenAI `text-embedding-3-large`         | Semantic similarity and linking |
-| **Environment Management** | Python venv, dotenv                      | Isolated dev environment, API keys management |
+> **The result:** Our digital knowledge is fragmented, dispersed, and mostly forgotten.
 
 ---
 
-## **Repository Structure**
-personal_knowledge_curator/
-├── .env                  # Environment variables
-├── README.md
-├── requirements.txt      # Python dependencies
-├── db/
-│   ├── create_tables.py  # Create tables & test data
-│   └── models.py         # ORM models
-├── embeddings/
-│   ├── embed_articles.py # Generate embeddings for articles
-│   └── vector_store.py   # Manage vector DB (FAISS, etc.)
-├── app/
-│   ├── main.py           # Core app logic (API or CLI)
-│   └── search.py         # Semantic search functions
-└── data/
-    └── sample_articles/  # Optional: articles to test
+### 💡 The Solution
+**Merlin** is an AI agent that turns your daily reading into structured knowledge.  
+
+Just paste a link or the text of an article, and Merlin will:
+
+- 📖 Read and understand the content  
+- ✍️ Generate a personalized summary  
+- 🏷 Extract intelligent thematic tags  
+- 🔗 Connect related concepts from your existing archive  
+
+Over time, it builds a **true semantic map of your personal knowledge**.
+
+---
+
+### ⚙️ How It Works
+1. **User Input:** Paste a link or text.  
+2. **AI Processing:** Claude + Strands process the content.  
+3. **Semantic Storage:** Summaries, metadata, and links are stored in **PostgreSQL + pgvector**.  
+4. **Discovery:** Browse, filter, and rediscover ideas via **Streamlit UI**.
+
+---
+
+### 🚀 What Makes It Unique
+Unlike Obsidian or Notion, Merlin is **proactive and intelligent**:
+
+- 🧠 Understands what you read  
+- 📚 Enriches notes with context and references  
+- 🔄 Builds automatic connections between sources  
+
+> **It’s like having a second brain that grows with you.**
+
+---
+
+### 📈 Initial MVP
+- **Input:** Pasted link or text  
+- **Output:** Summary + tags + 3 similar articles already read  
+- **Tech Stack:** Claude (LLM), Strands (agent), FastAPI + Streamlit, PostgreSQL/pgvector  
+
+---
+
+### 🌍 Long-Term Vision
+Merlin aims to be the **personal cognitive assistant** for information-driven people:
+
+- Read what you read  
+- Understand your interests  
+- Suggest new connections & insights from past knowledge  
+
+> **In one sentence:**  
+> “Merlin: your AI archivist that turns forgotten readings into living knowledge.”
+
+---
+
+## 🛠 Technical Description (Phase 1 MVP)
+Merlin allows users to paste full content or submit a URL. The AI then:
+
+- ✍️ Summarizes content  
+- 🏷 Generates semantic tags  
+- 💾 Stores notes in **PostgreSQL** with embeddings  
+- 🔍 Suggests related notes via semantic search  
+- 🪞 Optionally provides mini-reflections on knowledge growth  
+
+### 🌟 Key Features
+- **Autonomous AI Agent:** Decides actions on new inputs  
+- **Curator Personality:** Friendly, reflective, thoughtful summaries  
+- **Semantic Organization:** Notes linked by meaning, not folders  
+- **Flexible Input:** Paste text or provide URL  
+- **Mini Reflection:** Summarizes trends in user notes  
+
+---
+
+### 💻 Technical Stack
+
+| Layer                  | Technology / Library       | Purpose                                                   |
+|------------------------|---------------------------|-----------------------------------------------------------|
+| Frontend (UI)          | Streamlit                 | Quick interface for input & visualization               |
+| Backend                | FastAPI                   | API for note ingestion & agent communication            |
+| Agent Framework        | Strands                   | Orchestrates summarization, tagging, embedding, reasoning|
+| LLM                    | Claude                    | Summarization, tagging, reflective insights             |
+| Database               | PostgreSQL + pgvector     | Store notes, embeddings, enable semantic search          |
+| Embeddings             | pgvector / custom embeddings | Semantic similarity & linking                           |
+| Environment Management | Python venv, dotenv       | Isolated dev environment, API keys management           |
