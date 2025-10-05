@@ -1,1 +1,11 @@
+.env.env
+
+# Local secrets
 .env
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Logs
+server.log
