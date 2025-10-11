@@ -1,0 +1,297 @@
+# Strands Agents Configuration for Merlin Personal Knowledge Curator
+# This configuration defines the agent architecture and behavior
+
+# Global configuration
+global:
+  name: "Merlin Personal Knowledge Curator"
+  version: "2.0.0"
+  architecture: "Strands Agents"
+  description: "AI-powered personal knowledge curation system with intelligent agent routing"
+
+# Agent definitions
+agents:
+  router:
+    name: "StrandsRouterAgent"
+    description: "Intelligent input classification using Strands and Claude"
+    type: "routing"
+    class: "app.agents.strands_router_agent.StrandsRouterAgent"
+    framework: "strands"
+    model: "claude-3-5-haiku-20241022"
+    capabilities:
+      - "intelligent_input_classification"
+      - "structured_output_routing"
+      - "confidence_scoring"
+      - "reasoning_explanation"
+    input_types:
+      - "url"
+      - "text"
+      - "query"
+    output_format: "structured_routing_decision"
+    confidence_threshold: 0.5
+
+  ingestion:
+    name: "StrandsIngestionAgent"
+    description: "AI-powered content ingestion using Strands and Claude"
+    type: "processing"
+    class: "app.agents.strands_ingestion_agent.StrandsIngestionAgent"
+    framework: "strands"
+    model: "claude-3-5-haiku-20241022"
+    capabilities:
+      - "intelligent_title_generation"
+      - "contextual_summarization"
+      - "semantic_tag_extraction"
+      - "content_type_classification"
+      - "key_insights_extraction"
+      - "url_processing"
+      - "content_extraction"
+      - "embedding_generation"
+      - "database_storage"
+    input_types:
+      - "url"
+      - "text_content"
+    output_format: "structured_note_with_ai_analysis"
+    tools:
+      - "content_fetcher"
+      - "summarize"
+      - "tagging"
+      - "embedding"
+      - "database_ops"
+      - "search"
+    actions:
+      ingest_url:
+        description: "Process and ingest content from a URL"
+        input_required:
+          - "url"
+        output: "note_with_similarity"
+      ingest_text:
+        description: "Process and ingest text content"
+        input_required:
+          - "content"
+        input_optional:
+          - "title"
+        output: "note_with_similarity"
+
+  query:
+    name: "QueryAgent"
+    description: "Handles search queries and information retrieval"
+    type: "retrieval"
+    class: "app.agents.query_agent.QueryAgent"
+    capabilities:
+      - "semantic_search"
+      - "text_search"
+      - "hybrid_search"
+      - "similarity_search"
+      - "recent_notes_retrieval"
+    input_types:
+      - "search_query"
+      - "question"
+      - "empty_input"
+    output_format: "search_results_with_metadata"
+    tools:
+      - "search"
+      - "database_ops"
+      - "embedding"
+    actions:
+      search:
+        description: "Perform semantic or text search"
+        input_required:
+          - "query"
+        input_optional:
+          - "search_type"
+          - "top_k"
+        output: "search_results"
+      find_similar:
+        description: "Find notes similar to a given note"
+        input_required:
+          - "note_id"
+        input_optional:
+          - "top_k"
+        output: "similar_notes"
+      get_recent:
+        description: "Get recent notes"
+        input_optional:
+          - "limit"
+        output: "recent_notes"
+      empty_input:
+        description: "Handle empty input by showing recent notes and statistics"
+        input_required: []
+        output: "recent_notes_with_stats"
+
+  summarization:
+    name: "SummarizationAgent"
+    description: "Handles summarization requests and content analysis"
+    type: "analysis"
+    class: "app.agents.summarization_agent.SummarizationAgent"
+    capabilities:
+      - "content_summarization"
+      - "tag_extraction"
+      - "content_analysis"
+      - "trend_analysis"
+      - "insight_extraction"
+    input_types:
+      - "content_for_summary"
+      - "summary_request"
+    output_format: "summary_with_analysis"
+    tools:
+      - "summarize"
+      - "database_ops"
+      - "search"
+      - "tagging"
+    actions:
+      summarize_existing:
+        description: "Summarize existing content in the knowledge base"
+        input_required:
+          - "content"
+        output: "summary_with_related_content"
+      generate_summary:
+        description: "Generate a summary for specific content or note"
+        input_required:
+          - "content OR note_id"
+        output: "summary_with_insights"
+
+# Tool definitions
+tools:
+  content_fetcher:
+    name: "ContentFetcher"
+    description: "Fetches and extracts content from URLs"
+    class: "app.agents.tools.content_fetcher"
+    functions:
+      - "fetch_url_content"
+      - "is_url"
+      - "extract_content_from_input"
+
+  summarize:
+    name: "SummarizeTool"
+    description: "AI-powered summarization and tagging"
+    class: "app.agents.tools.summarize"
+    functions:
+      - "summarize_and_tag"
+      - "generate_title"
+      - "is_llm_available"
+
+  tagging:
+    name: "TaggingTool"
+    description: "Tag normalization and keyword extraction"
+    class: "app.agents.tools.tagging"
+    functions:
+      - "normalize_tags"
+      - "extract_keywords_from_content"
+      - "merge_tags"
+
+  embedding:
+    name: "EmbeddingTool"
+    description: "Vector embedding generation and similarity computation"
+    class: "app.agents.tools.embedding"
+    functions:
+      - "generate_embedding"
+      - "generate_embeddings_batch"
+      - "compute_similarity"
+      - "get_embedding_dimension"
+
+  database_ops:
+    name: "DatabaseOpsTool"
+    description: "Database operations for notes and metadata"
+    class: "app.agents.tools.database_ops"
+    functions:
+      - "add_note"
+      - "get_note_by_id"
+      - "get_all_notes"
+      - "get_notes_by_tags"
+      - "get_recent_notes"
+      - "update_note"
+      - "delete_note"
+      - "search_notes_by_content"
+      - "get_note_statistics"
+
+  search:
+    name: "SearchTool"
+    description: "Advanced search capabilities"
+    class: "app.agents.tools.search"
+    functions:
+      - "semantic_search"
+      - "find_similar_notes"
+      - "search_by_tags"
+      - "search_by_content"
+      - "hybrid_search"
+      - "get_recent_notes"
+      - "search_notes"
+
+# Routing rules
+routing:
+  rules:
+    - condition: "input is URL"
+      target_agent: "ingestion"
+      action: "ingest_url"
+      confidence: 0.95
+    
+    - condition: "input is question or search query"
+      target_agent: "query"
+      action: "search"
+      confidence: 0.9
+    
+    - condition: "input contains summarization keywords"
+      target_agent: "summarization"
+      action: "summarize_existing"
+      confidence: 0.8
+    
+    - condition: "input is long text content"
+      target_agent: "ingestion"
+      action: "ingest_text"
+      confidence: 0.85
+    
+    - condition: "input is empty or minimal"
+      target_agent: "query"
+      action: "empty_input"
+      confidence: 1.0
+    
+    - condition: "default fallback"
+      target_agent: "query"
+      action: "search"
+      confidence: 0.5
+
+# API configuration
+api:
+  version: "v1"
+  base_path: "/api/v1"
+  endpoints:
+    process: "/process"
+    agents_info: "/agents/info"
+    agent_capabilities: "/agents/{agent_type}/capabilities"
+    validate_input: "/agents/{agent_type}/validate"
+  
+  request_timeout: 60
+  max_input_length: 10000
+  cors_enabled: true
+
+# Performance settings
+performance:
+  embedding_model: "all-MiniLM-L6-v2"
+  embedding_dimension: 384
+  max_search_results: 20
+  default_search_results: 5
+  similarity_threshold: 0.7
+  cache_embeddings: true
+
+# LLM configuration
+llm:
+  provider: "anthropic"
+  primary_model: "claude-3-5-haiku-20241022"
+  fallback_model: "claude-3-haiku-20240307"
+  max_tokens: 600
+  temperature: 0.2
+  system_prompt: "You are Merlin, a friendly, reflective curator. Summarize the user's content succinctly (120-180 words) and extract 5-10 semantic tags. Tags should be concise noun phrases, lowercase, no punctuation."
+
+# Database configuration
+database:
+  type: "postgresql"
+  vector_extension: "pgvector"
+  table_name: "notes"
+  embedding_column: "embedding"
+  similarity_function: "cosine"
+
+# Logging configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  agents_logging: true
+  performance_metrics: true

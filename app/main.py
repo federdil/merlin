@@ -1,15 +1,16 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from typing import Optional, List
-from db.crud import add_note, get_all_notes, get_note_by_id, semantic_search_pgvector
-from embeddings.embed_articles import generate_embedding
-from app.search import semantic_search
-from app.fetcher import fetch_url_content
-from app.llm import summarize_and_tag
-from app.utils import normalize_tags
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from app.routes.process_input import router as process_input_router
+import traceback
 
-app = FastAPI(title="Personal Knowledge Curator")
+# Create FastAPI app
+app = FastAPI(
+    title="Merlin - Personal Knowledge Curator",
+    description="AI-powered personal knowledge curation system with Strands Agents architecture",
+    version="2.0.0"
+)
 
 # Enable CORS for local development (adjust origins for production)
 app.add_middleware(
@@ -20,80 +21,73 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add custom exception handler for serialization errors
+@app.exception_handler(Exception)
+async def general_exception_handler(request, exc):
+    """Handle general exceptions including serialization errors."""
+    error_details = traceback.format_exc()
+    print(f"API Error: {exc}")
+    print(f"Traceback: {error_details}")
+    
+    # Check if it's a serialization error
+    if "PydanticSerializationError" in str(exc) or "Unable to serialize" in str(exc):
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": "Data serialization error - please try again",
+                "detail": "The response contained data that couldn't be serialized to JSON"
+            }
+        )
+    
+    # For other errors, return generic error
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success": False,
+            "error": "Internal server error",
+            "detail": str(exc)
+        }
+    )
 
-class NoteInput(BaseModel):
-    title: Optional[str] = None
-    content: Optional[str] = None
-    url: Optional[str] = None
-    summary: Optional[str] = None
-    tags: List[str] = []
-
-
-@app.post("/add_note")
-def create_note(note: NoteInput):
-    # Resolve content and title from either raw input or URL
-    resolved_title = note.title
-    resolved_content = note.content
-
-    if not resolved_content and note.url:
-        title, content = fetch_url_content(note.url)
-        if not content:
-            raise HTTPException(status_code=400, detail="Failed to extract content from URL")
-        resolved_content = content
-        if not resolved_title and title:
-            resolved_title = title
-
-    if not resolved_content:
-        raise HTTPException(status_code=400, detail="content or url is required")
-
-    if not resolved_title:
-        resolved_title = resolved_content[:80]
-
-    # Generate summary and tags if missing
-    summary = note.summary
-    tags = note.tags or []
-    if summary is None or not tags:
-        gen_summary, gen_tags = summarize_and_tag(resolved_content)
-        summary = summary or gen_summary
-        if not tags:
-            tags = gen_tags
-
-    embedding = generate_embedding(resolved_content)
-    db_note = add_note(resolved_title, resolved_content, summary, tags, embedding)
-    return {"id": db_note.id, "title": db_note.title, "summary": db_note.summary, "tags": normalize_tags(db_note.tags)}
+# Include routers
+app.include_router(process_input_router, prefix="/api/v1", tags=["agents"])
 
 
-@app.get("/search")
-def search_notes(query: str, top_k: int = 5):
-    results = semantic_search(query, top_k=top_k)
-    return [{"id": n.id, "title": n.title, "summary": n.summary, "tags": normalize_tags(n.tags)} for n in results]
-
-
-@app.get("/notes/{note_id}")
-def get_note(note_id: int):
-    note = get_note_by_id(note_id)
-    if not note:
-        raise HTTPException(status_code=404, detail="Note not found")
+@app.get("/")
+async def root():
+    """Root endpoint with API information."""
     return {
-        "id": note.id,
-        "title": note.title,
-        "summary": note.summary,
-        "tags": normalize_tags(note.tags),
-        "content": note.content,
-        "created_at": str(note.created_at),
+        "message": "Merlin - Personal Knowledge Curator API",
+        "version": "2.0.0",
+        "architecture": "Strands Agents",
+        "endpoints": {
+            "process_input": "/api/v1/process",
+            "agents_info": "/api/v1/agents/info",
+            "agent_capabilities": "/api/v1/agents/{agent_type}/capabilities",
+            "validate_input": "/api/v1/agents/{agent_type}/validate"
+        },
+        "agents": ["router", "ingestion", "query", "summarization"]
     }
 
 
-@app.get("/similar/{note_id}")
-def similar_notes(note_id: int, top_k: int = 3):
-    note = get_note_by_id(note_id)
-    if not note:
-        raise HTTPException(status_code=404, detail="Note not found")
-    # Reuse existing embedding as query
-    results = semantic_search_pgvector(note.embedding, top_k)
-    # Exclude the note itself if present
-    filtered = [n for n in results if n.id != note.id]
-    payload = []
-    for n in filtered[:top_k]:
-        payload.append({"id": n.id, "title": n.title, "summary": n.summary, "tags": normalize_tags(n.tags)})
-    return payload
+@app.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    return {"status": "healthy", "service": "merlin-api"}
+
+@app.post("/test")
+async def test_endpoint(data: dict):
+    """Test endpoint for debugging."""
+    return {"received": data, "status": "ok"}
+
+@app.post("/test-ingestion")
+def test_ingestion():
+    """Test ingestion agent directly."""
+    try:
+        from app.routes.process_input import ingestion_agent
+        result = ingestion_agent.process_ingestion('ingest_url', {'url': 'https://example.com'})
+        return {"success": result.get('success', False), "message": "Ingestion test completed"}
+    except Exception as e:
+        import traceback
+        return {"success": False, "error": str(e), "traceback": traceback.format_exc()}

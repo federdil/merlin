@@ -1,7 +1,12 @@
+"""
+Summarization tool for agents.
+Refactored from app/llm.py to be used by Strands agents.
+"""
+
 import os
+import re
 from typing import List, Tuple, Optional
 from dotenv import load_dotenv
-import re
 
 load_dotenv()
 
@@ -32,6 +37,7 @@ def _get_client() -> Optional["Anthropic"]:
 
 
 def _local_fallback(content: str) -> Tuple[str, List[str]]:
+    """Simple extractive summary and tag extraction as fallback."""
     # Simple extractive summary: first 3 sentences (or ~180 words max)
     sentences = re.split(r"(?<=[.!?])\s+", content.strip())
     summary = " ".join(sentences[:3])
@@ -57,31 +63,8 @@ def _local_fallback(content: str) -> Tuple[str, List[str]]:
 
 
 def is_llm_available() -> bool:
+    """Check if LLM is available."""
     return _get_client() is not None
-
-
-def llm_ping() -> Tuple[bool, str]:
-    client = _get_client()
-    if client is None:
-        return False, "no_client"
-    try:
-        msg = client.messages.create(
-            model=PRIMARY_MODEL,
-            max_tokens=20,
-            temperature=0,
-            system="Return JSON {\"ok\": true} only.",
-            messages=[{"role": "user", "content": "ping"}],
-        )
-        # Coalesce text
-        text_out = ""
-        blocks = getattr(msg, "content", []) or []
-        for block in blocks:
-            val = getattr(block, "text", None) if not isinstance(block, dict) else block.get("text")
-            if val:
-                text_out += val
-        return True, text_out.strip()
-    except Exception as e:
-        return False, f"error:{e}"
 
 
 def summarize_and_tag(content: str) -> Tuple[Optional[str], List[str]]:
@@ -162,3 +145,18 @@ def summarize_and_tag(content: str) -> Tuple[Optional[str], List[str]]:
         if not tags:
             tags = ftags
     return summary, tags
+
+
+def generate_title(content: str, title: Optional[str] = None) -> str:
+    """Generate a title from content if not provided."""
+    if title:
+        return title
+    
+    # Use first sentence or first 80 characters
+    sentences = re.split(r"(?<=[.!?])\s+", content.strip())
+    if sentences:
+        first_sentence = sentences[0]
+        if len(first_sentence) <= 80:
+            return first_sentence
+    
+    return content[:80]
