@@ -10,6 +10,9 @@ from app.agents.strands_router_agent import StrandsRouterAgent
 from app.agents.strands_ingestion_agent import StrandsIngestionAgent
 from app.agents.query_agent import QueryAgent
 from app.agents.summarization_agent import SummarizationAgent
+from app.agents.strands_knowledge_gap_agent import StrandsKnowledgeGapAgent
+from app.agents.strands_conversational_query_agent import StrandsConversationalQueryAgent
+from app.agents.strands_learning_path_agent import StrandsLearningPathAgent
 
 router = APIRouter()
 
@@ -18,6 +21,9 @@ router_agent = StrandsRouterAgent()
 ingestion_agent = StrandsIngestionAgent()
 query_agent = QueryAgent()
 summarization_agent = SummarizationAgent()
+knowledge_gap_agent = StrandsKnowledgeGapAgent()
+conversational_query_agent = StrandsConversationalQueryAgent()
+learning_path_agent = StrandsLearningPathAgent()
 
 
 class ProcessInputRequest(BaseModel):
@@ -76,6 +82,63 @@ def process_input(request: ProcessInputRequest):
             agent_result = query_agent.process_query(action, input_data)
         elif agent_type == 'summarization':
             agent_result = summarization_agent.process_summarization(action, input_data)
+        elif agent_type == 'knowledge_gap':
+            if action == 'detect_gaps':
+                agent_result = knowledge_gap_agent.detect_gaps(
+                    input_data.get('user_id', 'default_user'),
+                    input_data.get('timeframe', '30d')
+                )
+            elif action == 'get_user_knowledge_gaps':
+                agent_result = knowledge_gap_agent.get_user_knowledge_gaps(
+                    input_data.get('user_id', 'default_user'),
+                    input_data.get('resolved', False)
+                )
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unknown action '{action}' for knowledge_gap agent"
+                )
+        elif agent_type == 'conversational_query':
+            if action == 'process_conversational_query':
+                agent_result = conversational_query_agent.process_conversational_query(
+                    input_data.get('query', request.input_text),
+                    input_data.get('user_id', 'default_user'),
+                    input_data.get('session_id'),
+                    input_data.get('context')
+                )
+            elif action == 'get_conversation_history':
+                agent_result = conversational_query_agent.get_conversation_history(
+                    input_data.get('user_id', 'default_user'),
+                    input_data.get('session_id'),
+                    input_data.get('limit', 10)
+                )
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unknown action '{action}' for conversational_query agent"
+                )
+        elif agent_type == 'learning_path':
+            if action == 'suggest_learning_path':
+                agent_result = learning_path_agent.suggest_learning_path(
+                    input_data.get('user_id', 'default_user'),
+                    input_data.get('topic'),
+                    input_data.get('current_level'),
+                    input_data.get('objectives')
+                )
+            elif action == 'get_user_learning_paths':
+                agent_result = learning_path_agent.get_user_learning_paths(
+                    input_data.get('user_id', 'default_user')
+                )
+            elif action == 'update_learning_progress':
+                agent_result = learning_path_agent.update_learning_progress(
+                    input_data.get('path_id'),
+                    input_data.get('progress_data')
+                )
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unknown action '{action}' for learning_path agent"
+                )
         else:
             raise HTTPException(
                 status_code=400,
@@ -132,14 +195,13 @@ async def get_agents_info():
     """Get information about available agents and their capabilities."""
     try:
         return {
-            'router_agent': {
-                'name': 'RouterAgent',
-                'description': 'Classifies user input and routes to appropriate agents',
-                'supported_agent_types': ['ingestion', 'query', 'summarization']
-            },
+            'router_agent': router_agent.get_capabilities(),
             'ingestion_agent': ingestion_agent.get_capabilities(),
             'query_agent': query_agent.get_capabilities(),
-            'summarization_agent': summarization_agent.get_capabilities()
+            'summarization_agent': summarization_agent.get_capabilities(),
+            'knowledge_gap_agent': knowledge_gap_agent.get_capabilities(),
+            'conversational_query_agent': conversational_query_agent.get_capabilities(),
+            'learning_path_agent': learning_path_agent.get_capabilities()
         }
     except Exception as e:
         raise HTTPException(
@@ -153,18 +215,19 @@ async def get_agent_capabilities(agent_type: str):
     """Get detailed capabilities for a specific agent."""
     try:
         if agent_type == 'router':
-            return {
-                'name': 'RouterAgent',
-                'description': 'Classifies user input and routes to appropriate agents',
-                'supported_agent_types': ['ingestion', 'query', 'summarization'],
-                'routing_logic': 'Analyzes input type, content, and intent to determine appropriate agent'
-            }
+            return router_agent.get_capabilities()
         elif agent_type == 'ingestion':
             return ingestion_agent.get_capabilities()
         elif agent_type == 'query':
             return query_agent.get_capabilities()
         elif agent_type == 'summarization':
             return summarization_agent.get_capabilities()
+        elif agent_type == 'knowledge_gap':
+            return knowledge_gap_agent.get_capabilities()
+        elif agent_type == 'conversational_query':
+            return conversational_query_agent.get_capabilities()
+        elif agent_type == 'learning_path':
+            return learning_path_agent.get_capabilities()
         else:
             raise HTTPException(
                 status_code=404,
@@ -192,6 +255,12 @@ async def validate_agent_input(agent_type: str, request: Dict[str, Any]):
             is_valid = query_agent.validate_input(action, input_data)
         elif agent_type == 'summarization':
             is_valid = summarization_agent.validate_input(action, input_data)
+        elif agent_type == 'knowledge_gap':
+            is_valid = knowledge_gap_agent.validate_input(action, input_data)
+        elif agent_type == 'conversational_query':
+            is_valid = conversational_query_agent.validate_input(action, input_data)
+        elif agent_type == 'learning_path':
+            is_valid = learning_path_agent.validate_input(action, input_data)
         else:
             raise HTTPException(
                 status_code=404,
@@ -212,3 +281,37 @@ async def validate_agent_input(agent_type: str, request: Dict[str, Any]):
             status_code=500,
             detail=f"Validation failed: {str(e)}"
         )
+
+
+@router.get("/tags")
+async def get_all_tags():
+    """Get all unique tags from the database with their counts"""
+    try:
+        from db.crud import get_all_notes
+        from collections import Counter
+        
+        notes = get_all_notes()
+        all_tags = []
+        
+        for note in notes:
+            if note.tags:
+                all_tags.extend(note.tags)
+        
+        # Count tag frequency
+        tag_counts = Counter(all_tags)
+        
+        # Sort by frequency (most popular first)
+        popular_tags = sorted(tag_counts.items(), key=lambda x: x[1], reverse=True)
+        
+        return {
+            "success": True,
+            "tags": [{"tag": tag, "count": count} for tag, count in popular_tags],
+            "total_unique_tags": len(tag_counts)
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "tags": [],
+            "total_unique_tags": 0
+        }

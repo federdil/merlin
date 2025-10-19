@@ -149,6 +149,125 @@ agents:
           - "content OR note_id"
         output: "summary_with_insights"
 
+  knowledge_gap:
+    name: "StrandsKnowledgeGapAgent"
+    description: "AI-powered knowledge gap detection using Strands and Claude"
+    type: "analysis"
+    class: "app.agents.strands_knowledge_gap_agent.StrandsKnowledgeGapAgent"
+    framework: "strands"
+    model: "claude-3-5-haiku-20241022"
+    capabilities:
+      - "intelligent_gap_detection"
+      - "learning_opportunity_identification"
+      - "priority_assessment"
+      - "personalized_recommendations"
+    input_types:
+      - "user_id"
+      - "timeframe"
+    output_format: "knowledge_gap_analysis_with_recommendations"
+    tools:
+      - "knowledge_analyzer"
+    actions:
+      detect_gaps:
+        description: "Analyze knowledge base to identify gaps"
+        input_required:
+          - "user_id"
+        input_optional:
+          - "timeframe"
+        output: "knowledge_gaps_with_suggestions"
+      get_user_knowledge_gaps:
+        description: "Get stored knowledge gaps for a user"
+        input_required:
+          - "user_id"
+        input_optional:
+          - "resolved"
+        output: "user_knowledge_gaps"
+
+  conversational_query:
+    name: "StrandsConversationalQueryAgent"
+    description: "AI-powered conversational search with temporal awareness using Strands and Claude"
+    type: "retrieval"
+    class: "app.agents.strands_conversational_query_agent.StrandsConversationalQueryAgent"
+    framework: "strands"
+    model: "claude-3-5-haiku-20241022"
+    capabilities:
+      - "natural_language_understanding"
+      - "temporal_query_processing"
+      - "conversational_response_generation"
+      - "context_aware_search"
+      - "follow_up_suggestion"
+    input_types:
+      - "conversational_query"
+      - "user_id"
+      - "session_id"
+    output_format: "conversational_response_with_context"
+    tools:
+      - "temporal_parser"
+      - "search"
+      - "database_ops"
+    actions:
+      process_conversational_query:
+        description: "Process natural language queries with temporal awareness"
+        input_required:
+          - "query"
+          - "user_id"
+        input_optional:
+          - "session_id"
+          - "context"
+        output: "conversational_response"
+      get_conversation_history:
+        description: "Get conversation history for context"
+        input_required:
+          - "user_id"
+        input_optional:
+          - "session_id"
+          - "limit"
+        output: "conversation_history"
+
+  learning_path:
+    name: "StrandsLearningPathAgent"
+    description: "AI-powered learning path generation using Strands and Claude"
+    type: "recommendation"
+    class: "app.agents.strands_learning_path_agent.StrandsLearningPathAgent"
+    framework: "strands"
+    model: "claude-3-5-haiku-20241022"
+    capabilities:
+      - "intelligent_path_generation"
+      - "knowledge_level_assessment"
+      - "learning_objective_creation"
+      - "personalized_recommendations"
+      - "progress_tracking"
+    input_types:
+      - "user_id"
+      - "topic"
+      - "current_level"
+      - "objectives"
+    output_format: "personalized_learning_path_with_enhancements"
+    tools:
+      - "knowledge_assessor"
+      - "path_builder"
+    actions:
+      suggest_learning_path:
+        description: "Generate personalized learning paths"
+        input_required:
+          - "user_id"
+        input_optional:
+          - "topic"
+          - "current_level"
+          - "objectives"
+        output: "personalized_learning_path"
+      get_user_learning_paths:
+        description: "Get user's learning paths"
+        input_required:
+          - "user_id"
+        output: "user_learning_paths"
+      update_learning_progress:
+        description: "Update progress for a learning path"
+        input_required:
+          - "path_id"
+          - "progress_data"
+        output: "progress_update_result"
+
 # Tool definitions
 tools:
   content_fetcher:
@@ -223,6 +342,21 @@ routing:
       target_agent: "ingestion"
       action: "ingest_url"
       confidence: 0.95
+    
+    - condition: "input contains temporal references"
+      target_agent: "conversational_query"
+      action: "process_conversational_query"
+      confidence: 0.9
+    
+    - condition: "input contains knowledge gap keywords"
+      target_agent: "knowledge_gap"
+      action: "detect_gaps"
+      confidence: 0.9
+    
+    - condition: "input contains learning path keywords"
+      target_agent: "learning_path"
+      action: "suggest_learning_path"
+      confidence: 0.9
     
     - condition: "input is question or search query"
       target_agent: "query"

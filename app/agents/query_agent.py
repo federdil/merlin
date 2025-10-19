@@ -69,6 +69,7 @@ class QueryAgent:
         
         search_type = input_data.get('search_type', 'semantic')
         top_k = input_data.get('top_k', 5)
+        include_summary = input_data.get('include_summary', True)  # Default to True for enhanced results
         
         try:
             if search_type == 'semantic':
@@ -95,18 +96,27 @@ class QueryAgent:
                     'content_preview': note.content[:200] + '...' if len(note.content) > 200 else note.content
                 })
             
+            # Base search result
+            search_result = {
+                'query': query,
+                'search_type': search_type,
+                'results': formatted_results,
+                'total_results': len(formatted_results),
+                'search_metadata': {
+                    'query_length': len(query),
+                    'search_type': search_type
+                }
+            }
+            
+            # Optionally enhance with intelligent summary
+            if include_summary and formatted_results:
+                enhanced_result = self._enhance_with_summary(query, formatted_results)
+                if enhanced_result:
+                    search_result['intelligent_summary'] = enhanced_result
+            
             return {
                 'success': True,
-                'result': {
-                    'query': query,
-                    'search_type': search_type,
-                    'results': formatted_results,
-                    'total_results': len(formatted_results),
-                    'search_metadata': {
-                        'query_length': len(query),
-                        'search_type': search_type
-                    }
-                },
+                'result': search_result,
                 'message': f'Found {len(formatted_results)} results for "{query}"'
             }
             
@@ -245,6 +255,39 @@ class QueryAgent:
                 'error': f'Handling empty input failed: {str(e)}',
                 'result': None
             }
+    
+    def _enhance_with_summary(self, query: str, results: List[Dict]) -> Optional[Dict[str, Any]]:
+        """
+        Enhance search results with intelligent summary using the summarization agent.
+        This is the core feature that provides AI-powered insights for search results.
+        """
+        try:
+            # Import here to avoid circular imports
+            from app.agents.summarization_agent import SummarizationAgent
+            
+            summarization_agent = SummarizationAgent()
+            
+            # Prepare input for summarization agent
+            summarization_input = {
+                'query': query,
+                'results': results
+            }
+            
+            # Call summarization agent
+            summary_result = summarization_agent.process_summarization(
+                'summarize_search_results', 
+                summarization_input
+            )
+            
+            if summary_result['success']:
+                return summary_result['result']
+            else:
+                print(f"Summarization failed: {summary_result.get('error', 'Unknown error')}")
+                return None
+                
+        except Exception as e:
+            print(f"Error enhancing search results with summary: {e}")
+            return None
     
     def _calculate_similarity_score(self, embedding1: List[float], embedding2: List[float]) -> float:
         """Calculate similarity score between two embeddings."""

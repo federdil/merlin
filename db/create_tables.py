@@ -80,4 +80,26 @@ with engine.connect() as connection:
     )
     connection.commit()
 
-print("Tables/columns created, tags normalized to array, and pgvector/index ensured successfully!")
+# Create indexes for new tables
+with engine.connect() as connection:
+    # Create indexes for knowledge_gaps table
+    connection.execute(text("CREATE INDEX IF NOT EXISTS idx_knowledge_gaps_user_id ON knowledge_gaps(user_id)"))
+    connection.execute(text("CREATE INDEX IF NOT EXISTS idx_knowledge_gaps_topic ON knowledge_gaps(topic)"))
+    connection.execute(text("CREATE INDEX IF NOT EXISTS idx_knowledge_gaps_created_at ON knowledge_gaps(created_at)"))
+    
+    # Create indexes for conversation_history table
+    connection.execute(text("CREATE INDEX IF NOT EXISTS idx_conversation_history_user_id ON conversation_history(user_id)"))
+    connection.execute(text("CREATE INDEX IF NOT EXISTS idx_conversation_history_session_id ON conversation_history(session_id)"))
+    connection.execute(text("CREATE INDEX IF NOT EXISTS idx_conversation_history_created_at ON conversation_history(created_at)"))
+    
+    # Create indexes for learning_paths table
+    connection.execute(text("CREATE INDEX IF NOT EXISTS idx_learning_paths_user_id ON learning_paths(user_id)"))
+    connection.execute(text("CREATE INDEX IF NOT EXISTS idx_learning_paths_topic ON learning_paths(topic)"))
+    connection.execute(text("CREATE INDEX IF NOT EXISTS idx_learning_paths_created_at ON learning_paths(created_at)"))
+    
+    # Create indexes for user_knowledge_profiles table
+    connection.execute(text("CREATE INDEX IF NOT EXISTS idx_user_knowledge_profiles_user_id ON user_knowledge_profiles(user_id)"))
+    
+    connection.commit()
+
+print("Tables/columns created, tags normalized to array, pgvector/index ensured, and new learning tables created successfully!")

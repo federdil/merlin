@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from app.routes.process_input import router as process_input_router
 import traceback
@@ -76,18 +75,4 @@ async def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "service": "merlin-api"}
 
-@app.post("/test")
-async def test_endpoint(data: dict):
-    """Test endpoint for debugging."""
-    return {"received": data, "status": "ok"}
-
-@app.post("/test-ingestion")
-def test_ingestion():
-    """Test ingestion agent directly."""
-    try:
-        from app.routes.process_input import ingestion_agent
-        result = ingestion_agent.process_ingestion('ingest_url', {'url': 'https://example.com'})
-        return {"success": result.get('success', False), "message": "Ingestion test completed"}
-    except Exception as e:
-        import traceback
-        return {"success": False, "error": str(e), "traceback": traceback.format_exc()}
+# Test endpoints removed - use test_agents.py for testing

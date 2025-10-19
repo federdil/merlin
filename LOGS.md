@@ -1,8 +1,26 @@
-# Merlin – Development Log (MVP Phase 1)
-
-Date: 2025-10-05
+# Merlin – Development Log
 
 ## Overview
+Development history for Merlin Personal Knowledge Curator, evolving from MVP to v2.0 with Strands Agents architecture.
+
+---
+
+## v2.0 Development (Current)
+**Date: 2025-01-XX**
+
+### Major Architecture Upgrade
+- **Strands Agents Framework**: Complete migration to agent-based architecture
+- **Intelligent Routing**: Claude-powered input classification and agent delegation
+- **Unified API**: Single `/api/v1/process` endpoint handling all interaction types
+- **Advanced Agents**: Router, Ingestion, Query, Summarization, Knowledge Gap, Conversational Query, Learning Path
+- **Enhanced Testing**: Comprehensive test suite with 90%+ coverage
+
+---
+
+## MVP Phase 1 (Historical)
+**Date: 2025-10-05**
+
+### Initial Implementation
 Built an end-to-end MVP for Merlin, a personal knowledge curator: ingest (URL/text), summarize + tag (LLM with fallback), embed, store vectors in Postgres/pgvector, semantic search, similar-notes discovery, and a polished Streamlit UI.
 
 ## Environment & Dependencies

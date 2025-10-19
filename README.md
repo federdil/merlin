@@ -89,6 +89,9 @@ merlin/
 │   ├── agents/
 │   │   ├── strands_router_agent.py       # 🆕 Strands + Claude routing
 │   │   ├── strands_ingestion_agent.py    # 🆕 Strands + Claude analysis
+│   │   ├── strands_conversational_query_agent.py  # Conversational queries
+│   │   ├── strands_knowledge_gap_agent.py         # Knowledge gap analysis
+│   │   ├── strands_learning_path_agent.py         # Learning path generation
 │   │   ├── summarization_agent.py        # Summarization & analysis
 │   │   ├── query_agent.py                # Search & retrieval
 │   │   └── tools/
@@ -97,17 +100,28 @@ merlin/
 │   │       ├── tagging.py
 │   │       ├── embedding.py
 │   │       ├── database_ops.py
-│   │       └── search.py
+│   │       ├── search.py
+│   │       ├── external_knowledge.py
+│   │       ├── knowledge_analyzer.py
+│   │       ├── knowledge_assessor.py
+│   │       ├── path_builder.py
+│   │       ├── tag_utils.py
+│   │       └── temporal_parser.py
 │   └── streamlit_app.py                  # Modern UI interface
 │
-├── embeddings/
-│   └── embed_articles.py         # Existing logic reused
 ├── db/
-│   ├── crud.py                   # Existing logic reused
-│   └── models.py
+│   ├── crud.py                   # Database operations
+│   ├── models.py                 # Database models
+│   └── create_tables.py          # Database initialization
+├── tests/
+│   ├── unit/                     # Unit tests
+│   ├── integration/              # Integration tests
+│   └── test_runner.py            # Test runner
 ├── strands_config.yaml           # Agent configuration
 ├── start_merlin.py               # Startup script
-└── test_agents.py                # Test suite
+├── test_agents.py                # Test suite
+├── pytest.ini                   # Test configuration
+└── requirements.txt              # Dependencies
 ```
 
 ## 🚀 Quick Start

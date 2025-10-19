@@ -23,7 +23,7 @@ class SummarizationAgent:
         Process summarization requests based on action type.
         
         Args:
-            action: Type of summarization action ('summarize_existing', 'generate_summary')
+            action: Type of summarization action ('summarize_existing', 'generate_summary', 'summarize_search_results')
             input_data: Input data containing content or note references
             
         Returns:
@@ -34,6 +34,8 @@ class SummarizationAgent:
                 return self._summarize_existing_content(input_data)
             elif action == 'generate_summary':
                 return self._generate_summary(input_data)
+            elif action == 'summarize_search_results':
+                return self._summarize_search_results(input_data)
             else:
                 return {
                     'success': False,
@@ -179,6 +181,223 @@ class SummarizationAgent:
         common_words = query_words.intersection(note_words)
         return len(common_words) / len(query_words.union(note_words))
     
+    def _summarize_search_results(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Summarize search results to provide intelligent insights and recommendations.
+        This is the main feature for enhancing search results with AI-powered summaries.
+        """
+        query = input_data.get('query', '').strip()
+        search_results = input_data.get('results', [])
+        
+        if not query or not search_results:
+            return {
+                'success': False,
+                'error': 'Query and search results are required for summarization',
+                'result': None
+            }
+        
+        try:
+            # Extract content from search results
+            combined_content = []
+            result_summaries = []
+            
+            for result in search_results:
+                # Combine title, summary, and content preview for analysis
+                content_parts = []
+                if result.get('title'):
+                    content_parts.append(f"Title: {result['title']}")
+                if result.get('summary'):
+                    content_parts.append(f"Summary: {result['summary']}")
+                if result.get('content_preview'):
+                    content_parts.append(f"Content: {result['content_preview']}")
+                
+                combined_text = " | ".join(content_parts)
+                combined_content.append(combined_text)
+                
+                result_summaries.append({
+                    'id': result.get('id'),
+                    'title': result.get('title', 'Untitled'),
+                    'summary': result.get('summary', ''),
+                    'tags': result.get('tags', []),
+                    'relevance_score': self._calculate_query_relevance(query, combined_text)
+                })
+            
+            # Generate intelligent summary using LLM
+            intelligent_summary = self._generate_search_summary(query, combined_content, result_summaries)
+            
+            # Extract recommendations and insights
+            recommendations = self._extract_recommendations(query, result_summaries)
+            key_themes = self._identify_key_themes(result_summaries)
+            
+            return {
+                'success': True,
+                'result': {
+                    'original_query': query,
+                    'intelligent_summary': intelligent_summary,
+                    'recommendations': recommendations,
+                    'key_themes': key_themes,
+                    'search_results': result_summaries,
+                    'analysis_metadata': {
+                        'total_results': len(search_results),
+                        'query_length': len(query),
+                        'analysis_timestamp': 'current'
+                    }
+                },
+                'message': f'Generated intelligent summary for "{query}" with {len(search_results)} results'
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f'Search result summarization failed: {str(e)}',
+                'result': None
+            }
+    
+    def _generate_search_summary(self, query: str, combined_content: List[str], results: List[Dict]) -> str:
+        """Generate an intelligent summary of search results using LLM."""
+        try:
+            from app.agents.tools.summarize import is_llm_available
+            
+            if not is_llm_available():
+                return self._generate_fallback_search_summary(query, results)
+            
+            # Prepare content for LLM analysis
+            content_text = "\n\n---\n\n".join(combined_content[:5])  # Limit to top 5 results
+            
+            prompt = f"""Based on the following search results for the query "{query}", provide a comprehensive and helpful summary.
+
+Query: {query}
+
+Search Results:
+{content_text}
+
+Please provide:
+1. A brief overview of what was found
+2. Key insights and patterns
+3. Practical recommendations or next steps
+4. Any notable gaps or areas for further exploration
+
+Format your response as a clear, actionable summary that helps the user understand what they've found and what they should do next."""
+
+            # Use the existing summarize function
+            summary, _ = summarize_and_tag(prompt)
+            
+            return summary if summary else self._generate_fallback_search_summary(query, results)
+            
+        except Exception as e:
+            print(f"LLM search summary failed: {e}")
+            return self._generate_fallback_search_summary(query, results)
+    
+    def _generate_fallback_search_summary(self, query: str, results: List[Dict]) -> str:
+        """Generate a fallback summary when LLM is not available."""
+        if not results:
+            return f"No results found for '{query}'."
+        
+        result_count = len(results)
+        top_result = results[0]
+        
+        summary = f"Found {result_count} results for '{query}'. "
+        
+        if result_count == 1:
+            summary += f"The main result is '{top_result['title']}'"
+        else:
+            summary += f"Top results include '{top_result['title']}'"
+            if result_count > 1:
+                other_titles = [r['title'] for r in results[1:3]]  # Show 2 more
+                summary += f" and {', '.join(other_titles)}"
+        
+        # Add common themes if available
+        all_tags = []
+        for result in results:
+            all_tags.extend(result.get('tags', []))
+        
+        if all_tags:
+            common_tags = list(set(all_tags))[:3]  # Get unique tags, limit to 3
+            summary += f". Common themes: {', '.join(common_tags)}"
+        
+        return summary + "."
+    
+    def _extract_recommendations(self, query: str, results: List[Dict]) -> List[str]:
+        """Extract actionable recommendations from search results."""
+        recommendations = []
+        
+        # Analyze query intent and provide contextual recommendations
+        query_lower = query.lower()
+        
+        if any(word in query_lower for word in ['film', 'movie', 'watch', 'cinema']):
+            recommendations.extend([
+                "Consider the genre and mood you're in when selecting a film",
+                "Check ratings and reviews to match your preferences",
+                "Look for films with similar themes or directors you enjoy"
+            ])
+        elif any(word in query_lower for word in ['book', 'read', 'novel', 'literature']):
+            recommendations.extend([
+                "Consider your reading level and interests",
+                "Check for book reviews and ratings",
+                "Look for books in a series if you enjoyed the first one"
+            ])
+        elif any(word in query_lower for word in ['learn', 'study', 'course', 'education']):
+            recommendations.extend([
+                "Start with foundational concepts before advanced topics",
+                "Practice regularly to reinforce learning",
+                "Look for hands-on exercises and practical applications"
+            ])
+        else:
+            # General recommendations
+            recommendations.extend([
+                "Review multiple sources to get a comprehensive understanding",
+                "Take notes on key points for future reference",
+                "Explore related topics to deepen your knowledge"
+            ])
+        
+        # Add result-specific recommendations
+        if results:
+            top_result = results[0]
+            if top_result.get('tags'):
+                recommendations.append(f"Explore more content tagged with: {', '.join(top_result['tags'][:3])}")
+        
+        return recommendations[:5]  # Limit to 5 recommendations
+    
+    def _identify_key_themes(self, results: List[Dict]) -> List[Dict[str, Any]]:
+        """Identify key themes from search results."""
+        theme_counts = {}
+        all_tags = []
+        
+        for result in results:
+            tags = result.get('tags', [])
+            all_tags.extend(tags)
+            
+            # Count tag frequency
+            for tag in tags:
+                theme_counts[tag] = theme_counts.get(tag, 0) + 1
+        
+        # Get top themes
+        top_themes = sorted(theme_counts.items(), key=lambda x: x[1], reverse=True)
+        
+        themes = []
+        for theme, count in top_themes[:5]:  # Top 5 themes
+            themes.append({
+                'theme': theme,
+                'frequency': count,
+                'relevance': count / len(results) if results else 0
+            })
+        
+        return themes
+    
+    def _calculate_query_relevance(self, query: str, content: str) -> float:
+        """Calculate relevance score between query and content."""
+        query_words = set(query.lower().split())
+        content_words = set(content.lower().split())
+        
+        if not query_words:
+            return 0.0
+        
+        # Calculate Jaccard similarity
+        intersection = query_words.intersection(content_words)
+        union = query_words.union(content_words)
+        
+        return len(intersection) / len(union) if union else 0.0
+
     def _extract_key_insights(self, content: str) -> List[str]:
         """Extract key insights from content."""
         # Simple insight extraction - in a real implementation, this could use more sophisticated NLP
@@ -274,8 +493,8 @@ class SummarizationAgent:
         return {
             'name': self.name,
             'description': self.description,
-            'supported_actions': ['summarize_existing', 'generate_summary', 'analyze_trends'],
-            'input_types': ['content', 'note_id'],
+            'supported_actions': ['summarize_existing', 'generate_summary', 'summarize_search_results', 'analyze_trends'],
+            'input_types': ['content', 'note_id', 'query', 'results'],
             'output_format': 'summary_with_analysis',
             'tools_used': [
                 'summarize',
@@ -291,4 +510,6 @@ class SummarizationAgent:
             return 'content' in input_data and input_data['content']
         elif action == 'generate_summary':
             return ('content' in input_data and input_data['content']) or ('note_id' in input_data and input_data['note_id'])
+        elif action == 'summarize_search_results':
+            return ('query' in input_data and input_data['query']) and ('results' in input_data and input_data['results'])
         return False
