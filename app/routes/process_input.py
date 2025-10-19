@@ -1,29 +1,24 @@
 """
 Unified input processing endpoint for Merlin.
-Handles all user interactions through the Strands Agents architecture.
+Handles all user interactions through the Strands Agents architecture with YAML configuration.
 """
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
-from app.agents.strands_router_agent import StrandsRouterAgent
-from app.agents.strands_ingestion_agent import StrandsIngestionAgent
-from app.agents.query_agent import QueryAgent
-from app.agents.summarization_agent import SummarizationAgent
-from app.agents.strands_knowledge_gap_agent import StrandsKnowledgeGapAgent
-from app.agents.strands_conversational_query_agent import StrandsConversationalQueryAgent
-from app.agents.strands_learning_path_agent import StrandsLearningPathAgent
+import logging
 
+from app.config import get_config_manager
+from app.agents.agent_factory import get_agent_factory
+from app.routing import get_routing_engine
+
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Initialize Strands-compatible agents
-router_agent = StrandsRouterAgent()
-ingestion_agent = StrandsIngestionAgent()
-query_agent = QueryAgent()
-summarization_agent = SummarizationAgent()
-knowledge_gap_agent = StrandsKnowledgeGapAgent()
-conversational_query_agent = StrandsConversationalQueryAgent()
-learning_path_agent = StrandsLearningPathAgent()
+# Initialize configuration-driven components
+config_manager = get_config_manager()
+agent_factory = get_agent_factory()
+routing_engine = get_routing_engine()
 
 
 class ProcessInputRequest(BaseModel):
@@ -47,146 +42,142 @@ class ProcessInputResponse(BaseModel):
 @router.post("/process", response_model=ProcessInputResponse)
 def process_input(request: ProcessInputRequest):
     """
-    Unified endpoint for processing all user inputs.
+    Unified endpoint for processing all user inputs using YAML configuration.
     
     This endpoint:
-    1. Routes the input to the appropriate agent using RouterAgent
-    2. Delegates processing to the specialized agent
+    1. Routes the input using the YAML routing engine
+    2. Dynamically loads and delegates to the appropriate agent
     3. Returns a structured response
     """
     try:
-        # Step 1: Route the input
-        routing_result = router_agent.classify_input(request.input_text)
+        # Step 1: Route the input using configuration-driven routing
+        routing_decision = routing_engine.route_input(request.input_text, request.user_id)
         
-        if not router_agent.validate_routing(routing_result):
+        agent_type = routing_decision.agent_type
+        action = routing_decision.action
+        confidence = routing_decision.confidence
+        reasoning = routing_decision.reasoning
+        
+        logger.info(f"Routing decision: {agent_type} -> {action} (confidence: {confidence})")
+        
+        # Step 2: Get the appropriate agent dynamically
+        try:
+            agent = agent_factory.get_agent(agent_type)
+        except Exception as e:
+            logger.error(f"Failed to get agent '{agent_type}': {e}")
             raise HTTPException(
-                status_code=400, 
-                detail="Invalid routing result from router agent"
+                status_code=500,
+                detail=f"Failed to load agent '{agent_type}': {str(e)}"
             )
         
-        agent_type = routing_result['agent_type']
-        action = routing_result['action']
-        input_data = routing_result['input_data']
-        confidence = routing_result['confidence']
+        # Step 3: Prepare input data for the agent
+        input_data = {
+            'input_text': request.input_text,
+            'user_id': request.user_id or 'default_user',
+            'metadata': request.metadata or {},
+            'action': action
+        }
         
-        # Add request metadata to input data
-        input_data['user_id'] = request.user_id
-        input_data['metadata'] = request.metadata or {}
-        
-        # Step 2: Process with appropriate agent
+        # Step 4: Process with the appropriate agent
         agent_result = None
         
-        if agent_type == 'ingestion':
-            agent_result = ingestion_agent.process_ingestion(action, input_data)
-        elif agent_type == 'query':
-            agent_result = query_agent.process_query(action, input_data)
-        elif agent_type == 'summarization':
-            agent_result = summarization_agent.process_summarization(action, input_data)
-        elif agent_type == 'knowledge_gap':
-            if action == 'detect_gaps':
-                agent_result = knowledge_gap_agent.detect_gaps(
-                    input_data.get('user_id', 'default_user'),
-                    input_data.get('timeframe', '30d')
-                )
-            elif action == 'get_user_knowledge_gaps':
-                agent_result = knowledge_gap_agent.get_user_knowledge_gaps(
-                    input_data.get('user_id', 'default_user'),
-                    input_data.get('resolved', False)
-                )
-            else:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Unknown action '{action}' for knowledge_gap agent"
-                )
-        elif agent_type == 'conversational_query':
-            if action == 'process_conversational_query':
-                agent_result = conversational_query_agent.process_conversational_query(
-                    input_data.get('query', request.input_text),
-                    input_data.get('user_id', 'default_user'),
-                    input_data.get('session_id'),
-                    input_data.get('context')
-                )
-            elif action == 'get_conversation_history':
-                agent_result = conversational_query_agent.get_conversation_history(
+        try:
+            # Route to the appropriate agent method based on agent type and action
+            if agent_type == 'ingestion':
+                agent_result = agent.process_ingestion(action, input_data)
+                    
+            elif agent_type == 'query':
+                agent_result = agent.process_query(action, input_data)
+                    
+            elif agent_type == 'summarization':
+                agent_result = agent.process_summarization(action, input_data)
+                    
+            elif agent_type == 'knowledge_gap':
+                if action == 'detect_gaps':
+                    agent_result = agent.detect_gaps(
+                        input_data.get('user_id', 'default_user'),
+                        input_data.get('timeframe', '30d')
+                    )
+                elif action == 'get_user_knowledge_gaps':
+                    agent_result = agent.get_user_knowledge_gaps(
+                        input_data.get('user_id', 'default_user'),
+                        input_data.get('resolved', False)
+                    )
+                else:
+                    agent_result = agent.detect_gaps(
+                        input_data.get('user_id', 'default_user')
+                    )
+                    
+            elif agent_type == 'conversational_query':
+                agent_result = agent.process_conversational_query(
+                    request.input_text,
                     input_data.get('user_id', 'default_user'),
                     input_data.get('session_id'),
-                    input_data.get('limit', 10)
+                    input_data.get('context', {})
                 )
+                
+            elif agent_type == 'learning_path':
+                if action == 'suggest_learning_path':
+                    agent_result = agent.suggest_learning_path(
+                        input_data.get('user_id', 'default_user'),
+                        input_data.get('topic'),
+                        input_data.get('current_level'),
+                        input_data.get('objectives')
+                    )
+                elif action == 'get_user_learning_paths':
+                    agent_result = agent.get_user_learning_paths(
+                        input_data.get('user_id', 'default_user')
+                    )
+                else:
+                    agent_result = agent.suggest_learning_path(
+                        input_data.get('user_id', 'default_user')
+                    )
             else:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Unknown action '{action}' for conversational_query agent"
+                    detail=f"Unknown agent type: {agent_type}"
                 )
-        elif agent_type == 'learning_path':
-            if action == 'suggest_learning_path':
-                agent_result = learning_path_agent.suggest_learning_path(
-                    input_data.get('user_id', 'default_user'),
-                    input_data.get('topic'),
-                    input_data.get('current_level'),
-                    input_data.get('objectives')
-                )
-            elif action == 'get_user_learning_paths':
-                agent_result = learning_path_agent.get_user_learning_paths(
-                    input_data.get('user_id', 'default_user')
-                )
-            elif action == 'update_learning_progress':
-                agent_result = learning_path_agent.update_learning_progress(
-                    input_data.get('path_id'),
-                    input_data.get('progress_data')
-                )
-            else:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Unknown action '{action}' for learning_path agent"
-                )
-        else:
+                
+        except Exception as e:
+            logger.error(f"Error processing with agent '{agent_type}': {e}")
             raise HTTPException(
-                status_code=400,
-                detail=f"Unknown agent type: {agent_type}"
+                status_code=500,
+                detail=f"Error processing with agent '{agent_type}': {str(e)}"
             )
         
-        # Step 3: Prepare response
-        if agent_result['success']:
-            return ProcessInputResponse(
-                success=True,
-                agent_type=agent_type,
-                action=action,
-                result=agent_result['result'],
-                message=agent_result.get('message', 'Processing completed successfully'),
-                processing_metadata={
-                    'routing_confidence': confidence,
-                    'agent_used': agent_type,
-                    'action_performed': action,
-                    'input_length': len(request.input_text),
-                    'user_id': request.user_id
-                }
-            )
-        else:
-            return ProcessInputResponse(
-                success=False,
-                agent_type=agent_type,
-                action=action,
-                error=agent_result.get('error', 'Processing failed'),
-                message="Processing failed",
-                processing_metadata={
-                    'routing_confidence': confidence,
-                    'agent_used': agent_type,
-                    'action_attempted': action,
-                    'input_length': len(request.input_text),
-                    'user_id': request.user_id
-                }
-            )
-    
+        # Step 5: Return structured response
+        return ProcessInputResponse(
+            success=True,
+            agent_type=agent_type,
+            action=action,
+            result=agent_result,
+            message=f"Successfully processed input using {agent_type} agent",
+            processing_metadata={
+                "routing_confidence": confidence,
+                "routing_reasoning": reasoning,
+                "agent_type": agent_type,
+                "action": action,
+                "input_length": len(request.input_text),
+                "configuration_driven": True
+            }
+        )
+        
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"API Error: {e}")
-        print(f"Traceback: {error_details}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Internal server error: {str(e)}"
+        logger.error(f"Error processing input: {e}")
+        return ProcessInputResponse(
+            success=False,
+            agent_type="unknown",
+            action="error",
+            result=None,
+            message=f"Error processing input: {str(e)}",
+            error=str(e),
+            processing_metadata={
+                "error_type": type(e).__name__,
+                "input_length": len(request.input_text),
+                "configuration_driven": True
+            }
         )
 
 
@@ -194,14 +185,22 @@ def process_input(request: ProcessInputRequest):
 async def get_agents_info():
     """Get information about available agents and their capabilities."""
     try:
+        # Get all available agents from configuration
+        available_agents = config_manager.get_available_agents()
+        agents_info = {}
+        
+        for agent_name in available_agents:
+            try:
+                agent = agent_factory.get_agent(agent_name)
+                agents_info[agent_name] = agent.get_capabilities()
+            except Exception as e:
+                logger.warning(f"Failed to get capabilities for agent '{agent_name}': {e}")
+                agents_info[agent_name] = {"error": str(e)}
+        
         return {
-            'router_agent': router_agent.get_capabilities(),
-            'ingestion_agent': ingestion_agent.get_capabilities(),
-            'query_agent': query_agent.get_capabilities(),
-            'summarization_agent': summarization_agent.get_capabilities(),
-            'knowledge_gap_agent': knowledge_gap_agent.get_capabilities(),
-            'conversational_query_agent': conversational_query_agent.get_capabilities(),
-            'learning_path_agent': learning_path_agent.get_capabilities()
+            "available_agents": available_agents,
+            "agents_info": agents_info,
+            "configuration_driven": True
         }
     except Exception as e:
         raise HTTPException(
@@ -214,25 +213,34 @@ async def get_agents_info():
 async def get_agent_capabilities(agent_type: str):
     """Get detailed capabilities for a specific agent."""
     try:
-        if agent_type == 'router':
-            return router_agent.get_capabilities()
-        elif agent_type == 'ingestion':
-            return ingestion_agent.get_capabilities()
-        elif agent_type == 'query':
-            return query_agent.get_capabilities()
-        elif agent_type == 'summarization':
-            return summarization_agent.get_capabilities()
-        elif agent_type == 'knowledge_gap':
-            return knowledge_gap_agent.get_capabilities()
-        elif agent_type == 'conversational_query':
-            return conversational_query_agent.get_capabilities()
-        elif agent_type == 'learning_path':
-            return learning_path_agent.get_capabilities()
-        else:
+        # Check if agent exists in configuration
+        available_agents = config_manager.get_available_agents()
+        if agent_type not in available_agents:
             raise HTTPException(
                 status_code=404,
-                detail=f"Agent type '{agent_type}' not found"
+                detail=f"Agent type '{agent_type}' not found in configuration"
             )
+        
+        # Get agent and its capabilities
+        agent = agent_factory.get_agent(agent_type)
+        capabilities = agent.get_capabilities()
+        
+        # Add configuration information
+        agent_config = config_manager.get_agent_config(agent_type)
+        capabilities["configuration"] = {
+            "name": agent_config.name,
+            "description": agent_config.description,
+            "type": agent_config.type,
+            "framework": agent_config.framework,
+            "model": agent_config.model,
+            "capabilities": agent_config.capabilities,
+            "input_types": agent_config.input_types,
+            "output_format": agent_config.output_format,
+            "tools": agent_config.tools
+        }
+        
+        return capabilities
+        
     except HTTPException:
         raise
     except Exception as e:
@@ -242,36 +250,48 @@ async def get_agent_capabilities(agent_type: str):
         )
 
 
+@router.get("/routing/rules")
+async def get_routing_rules():
+    """Get information about routing rules."""
+    try:
+        rules_info = routing_engine.get_routing_rules_info()
+        return {
+            "routing_rules": rules_info,
+            "total_rules": len(rules_info),
+            "configuration_driven": True
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get routing rules: {str(e)}"
+        )
+
+
 @router.post("/agents/{agent_type}/validate")
 async def validate_agent_input(agent_type: str, request: Dict[str, Any]):
     """Validate input for a specific agent."""
     try:
+        # Check if agent exists in configuration
+        available_agents = config_manager.get_available_agents()
+        if agent_type not in available_agents:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Agent type '{agent_type}' not found in configuration"
+            )
+        
         action = request.get('action')
         input_data = request.get('input_data', {})
         
-        if agent_type == 'ingestion':
-            is_valid = ingestion_agent.validate_input(action, input_data)
-        elif agent_type == 'query':
-            is_valid = query_agent.validate_input(action, input_data)
-        elif agent_type == 'summarization':
-            is_valid = summarization_agent.validate_input(action, input_data)
-        elif agent_type == 'knowledge_gap':
-            is_valid = knowledge_gap_agent.validate_input(action, input_data)
-        elif agent_type == 'conversational_query':
-            is_valid = conversational_query_agent.validate_input(action, input_data)
-        elif agent_type == 'learning_path':
-            is_valid = learning_path_agent.validate_input(action, input_data)
-        else:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Agent type '{agent_type}' not found"
-            )
+        # Get agent and validate input
+        agent = agent_factory.get_agent(agent_type)
+        is_valid = agent.validate_input(action, input_data)
         
         return {
             'valid': is_valid,
             'agent_type': agent_type,
             'action': action,
-            'message': 'Input is valid' if is_valid else 'Input validation failed'
+            'message': 'Input is valid' if is_valid else 'Input validation failed',
+            'configuration_driven': True
         }
     
     except HTTPException:
@@ -315,3 +335,26 @@ async def get_all_tags():
             "tags": [],
             "total_unique_tags": 0
         }
+
+
+@router.get("/config/reload")
+async def reload_configuration():
+    """Reload configuration from YAML file."""
+    try:
+        from app.config import reload_config
+        from app.agents.agent_factory import reload_agents
+        
+        # Reload configuration and agents
+        reload_config()
+        reload_agents()
+        
+        return {
+            "success": True,
+            "message": "Configuration and agents reloaded successfully",
+            "timestamp": "N/A"  # Could add actual timestamp
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to reload configuration: {str(e)}"
+        )

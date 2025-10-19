@@ -76,6 +76,8 @@ agents:
     description: "Handles search queries and information retrieval"
     type: "retrieval"
     class: "app.agents.query_agent.QueryAgent"
+    framework: "traditional"
+    model: "local"
     capabilities:
       - "semantic_search"
       - "text_search"
@@ -122,6 +124,8 @@ agents:
     description: "Handles summarization requests and content analysis"
     type: "analysis"
     class: "app.agents.summarization_agent.SummarizationAgent"
+    framework: "traditional"
+    model: "local"
     capabilities:
       - "content_summarization"
       - "tag_extraction"
